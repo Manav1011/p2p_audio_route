@@ -1,0 +1,35 @@
+(.globalvenv) ╭─web-h-063@web-h-063 in ~ 
+╰$ cat ~/.config/pipewire/virtual-audio.sh
+#!/bin/bash
+
+# virtual_sink and its monitor
+pactl load-module module-null-sink sink_name=virtual_sink sink_properties=device.description="Virtual Sink"
+
+# mic_sink and its monitor
+pactl load-module module-null-sink sink_name=mic_sink sink_properties=device.description="Mic Sink"
+
+# virtual_mic remapped from virtual_sink.monitor
+pactl load-module module-remap-source source_name=virtual_mic master=virtual_sink.monitor
+
+# virtual_mic_2 remapped from mic_sink.monitor
+pactl load-module module-remap-source source_name=virtual_mic_2 master=mic_sink.monitor
+
+
+(.globalvenv) ╭─web-h-063@web-h-063 in ~ 
+╰$ nano ~/.config/systemd/user/pipewire-virtual-audio.service
+
+[Unit]
+Description=Load virtual audio devices for PipeWire
+After=pipewire.service
+Requires=pipewire.service
+
+[Service]
+Type=oneshot
+ExecStart=/home/web-h-063/.config/pipewire/virtual-audio.sh
+RemainAfterExit=true
+
+[Install]
+WantedBy=default.target
+
+
+
