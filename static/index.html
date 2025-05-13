@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebRTC Audio | Dark Mode</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #8b5cf6;
+            --primary-dark: #7c3aed;
+            --primary-light: #a78bfa;
+            --success: #10b981;
+            --danger: #ef4444;
+            --background: #111827;
+            --card: #1f2937;
+            --card-hover: #2d3748;
+            --text: #f3f4f6;
+            --text-light: #9ca3af;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+            --radius: 12px;
+            --transition: all 0.3s ease;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--background);
+            color: var(--text);
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100dvh;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 600px;
+            padding: 2rem;
+            background: var(--card);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            border: 1px solid #374151;
+        }
+
+        h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--text);
+            margin-top: 0;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 2rem;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: #cbd5e1;
+            margin-right: 8px;
+            transition: var(--transition);
+        }
+
+        .status-dot.active {
+            background-color: var(--success);
+            box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.2), 0 0 12px rgba(16, 185, 129, 0.6);
+        }
+
+        .status-text {
+            font-size: 0.875rem;
+            color: var(--text-light);
+            font-weight: 500;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin: 2rem 0;
+        }
+
+        button {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: var(--radius);
+            font-weight: 600;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: var(--transition);
+            box-shadow: var(--shadow);
+        }
+
+        button i {
+            margin-right: 8px;
+        }
+
+        #startButton {
+            background-color: var(--primary);
+            color: white;
+        }
+
+        #startButton:hover {
+            background-color: var(--primary-dark);
+            transform: translateY(-2px);
+        }
+
+        #startButton:disabled {
+            background-color: var(--primary-light);
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        #stopButton {
+            background-color: var(--danger);
+            color: white;
+        }
+
+        #stopButton:hover {
+            background-color: #dc2626;
+            transform: translateY(-2px);
+        }
+
+        #stopButton:disabled {
+            background-color: #fca5a5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .audio-container {
+            background-color: #374151;
+            border-radius: var(--radius);
+            padding: 1rem;
+            margin-top: 1.5rem;
+            border: 1px solid #4b5563;
+        }
+
+        audio {
+            width: 100%;
+            border-radius: var(--radius);
+        }
+
+        audio::-webkit-media-controls-panel {
+            background-color: var(--primary-dark);
+        }
+        
+        audio::-webkit-media-controls-current-time-display,
+        audio::-webkit-media-controls-time-remaining-display {
+            color: var(--text);
+        }
+
+        .pulse-animation {
+            animation: pulse 2s infinite;
+        }
+
+        .visualizer {
+            height: 60px;
+            width: 100%;
+            background-color: #374151;
+            border-radius: var(--radius);
+            margin-top: 1rem;
+            overflow: hidden;
+            position: relative;
+            border: 1px solid #4b5563;
+        }
+
+        .visualizer-bar {
+            position: absolute;
+            bottom: 0;
+            width: 6px;
+            background-color: var(--primary);
+            border-radius: 2px 2px 0 0;
+            opacity: 0;
+            box-shadow: 0 0 8px rgba(139, 92, 246, 0.5);
+        }
+
+        .visualizer-glow {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 20px;
+            background: linear-gradient(to top, rgba(139, 92, 246, 0.2), transparent);
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+        
+        .visualizer.active .visualizer-glow {
+            opacity: 1;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            50% {
+                transform: scale(1.05);
+                opacity: 0.8;
+            }
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes glow {
+            0% { box-shadow: 0 0 5px rgba(139, 92, 246, 0.5); }
+            50% { box-shadow: 0 0 20px rgba(139, 92, 246, 0.8); }
+            100% { box-shadow: 0 0 5px rgba(139, 92, 246, 0.5); }
+        }
+
+        .hidden {
+            display: none;
+        }
+        
+        /* Dark mode scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #374151;
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: var(--primary);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--primary-dark);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Audio Streaming</h1>
+        
+        <div class="status-indicator">
+            <div id="statusDot" class="status-dot"></div>
+            <span id="statusText" class="status-text">Ready to connect</span>
+        </div>
+        
+        <div class="visualizer" id="visualizer">
+            <div class="visualizer-glow"></div>
+        </div>
+        
+        <div class="controls">
+            <button id="startButton"><i class="fas fa-microphone"></i> Start Streaming</button>
+            <button id="stopButton" disabled><i class="fas fa-stop-circle"></i> Stop</button>
+        </div>
+        
+        <div id="audioElements" class="audio-container hidden"></div>
+    </div>
+    
+    <script>
+        // DOM Elements
+        const startButton = document.getElementById('startButton');
+        const stopButton = document.getElementById('stopButton');
+        const audioElements = document.getElementById('audioElements');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+        const visualizerElement = document.getElementById('visualizer');
+        
+        // Global variables
+        let pc;
+        let localStream;
+        let audioElement = null;
+        let audioContext;
+        let analyser;
+        let visualizerBars = [];
+        const BAR_COUNT = 40;
+        
+        // Set up audio visualizer
+        function setupVisualizer() {
+            // Create visualizer bars
+            visualizerElement.innerHTML = '';
+            visualizerBars = [];
+            
+            for (let i = 0; i < BAR_COUNT; i++) {
+                const bar = document.createElement('div');
+                bar.className = 'visualizer-bar';
+                bar.style.left = `${(i * (100 / BAR_COUNT))}%`;
+                bar.style.width = `${90 / BAR_COUNT}%`;
+                visualizerElement.appendChild(bar);
+                visualizerBars.push(bar);
+            }
+        }
+        
+        // Update status indicator
+        function updateStatus(isConnected) {
+            if (isConnected) {
+                statusDot.classList.add('active');
+                statusText.textContent = 'Connected';
+                visualizerElement.classList.add('pulse-animation');
+            } else {
+                statusDot.classList.remove('active');
+                statusText.textContent = 'Ready to connect';
+                visualizerElement.classList.remove('pulse-animation');
+                // Reset visualizer bars
+                visualizerBars.forEach(bar => {
+                    bar.style.height = '0px';
+                    bar.style.opacity = '0';
+                });
+            }
+        }
+        
+        // Initialize audio visualizer
+        function initAudioAnalyser(stream) {
+            try {
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                
+                const source = audioContext.createMediaStreamSource(stream);
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 256;
+                source.connect(analyser);
+                
+                const bufferLength = analyser.frequencyBinCount;
+                const dataArray = new Uint8Array(bufferLength);
+                
+                function updateVisualizer() {
+                    if (!analyser) return;
+                    
+                    analyser.getByteFrequencyData(dataArray);
+                    
+                    // Calculate the average level for visualization
+                    let sum = 0;
+                    for (let i = 0; i < bufferLength; i++) {
+                        sum += dataArray[i];
+                    }
+                    
+                    // Update visualizer glow effect
+                    if (sum > 0) {
+                        visualizerElement.classList.add('active');
+                    } else {
+                        visualizerElement.classList.remove('active');
+                    }
+                    
+                    // Update bars with smoothing
+                    for (let i = 0; i < BAR_COUNT; i++) {
+                        const barIndex = Math.floor(i * bufferLength / BAR_COUNT);
+                        const value = dataArray[barIndex];
+                        const height = (value / 255) * 60;
+                        
+                        visualizerBars[i].style.height = `${height}px`;
+                        visualizerBars[i].style.opacity = (value / 255) * 0.9 + 0.1;
+                    }
+                    
+                    requestAnimationFrame(updateVisualizer);
+                }
+                
+                updateVisualizer();
+            } catch (e) {
+                // Silent fail for browsers that don't support AudioContext
+            }
+        }
+        
+        // Automatically select the default audio output device
+        async function setDefaultAudioOutput() {
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const outputDevices = devices.filter(device => device.kind === 'audiooutput');
+                
+                if (outputDevices.length > 0 && audioElement && typeof audioElement.setSinkId === 'function') {
+                    await audioElement.setSinkId(outputDevices[0].deviceId);
+                }
+            } catch (e) {
+                // Silent fail
+            }
+        }
+        
+        // Create a connection to the server to send the offer
+        async function createOffer() {
+            try {
+                const response = await fetch('/offer', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        sdp: pc.localDescription.sdp,
+                        type: pc.localDescription.type
+                    })
+                });
+
+                const answer = await response.json();
+                await pc.setRemoteDescription(new RTCSessionDescription(answer));
+            } catch (e) {
+                // Silent fail
+            }
+        }
+
+        // Start streaming
+        startButton.onclick = async () => {
+            try {
+                // Update UI state
+                startButton.disabled = true;
+                statusText.textContent = 'Connecting...';
+                
+                // Get user media (audio) with optimal settings for low latency
+                localStream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        channelCount: 1,
+                        sampleRate: 48000,
+                        sampleSize: 16,
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: false,
+                        latency: 0.01  // Request lowest possible latency
+                    },
+                });
+                
+                // Initialize audio visualizer
+                setupVisualizer();
+                initAudioAnalyser(localStream);
+
+                // Create RTCPeerConnection with optimized settings
+                pc = new RTCPeerConnection({
+                    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+                    sdpSemantics: 'unified-plan',
+                    bundlePolicy: 'max-bundle',  // Optimize for fewer connections
+                    iceTransportPolicy: 'all'    // Allow all transport types for better connectivity
+                });
+
+                // Handle connection state changes
+                pc.oniceconnectionstatechange = () => {
+                    if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+                        updateStatus(true);
+                    } else if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'closed') {
+                        updateStatus(false);
+                    }
+                };
+
+                // Handle incoming tracks
+                pc.ontrack = async (event) => {
+                    // Remove previous audio element if it exists
+                    if (audioElement) {
+                        audioElement.remove();
+                    }
+
+                    // Create new audio element
+                    audioElement = document.createElement('audio');
+                    audioElement.srcObject = event.streams[0];
+                    audioElement.autoplay = true;
+                    audioElement.controls = true;
+                    
+                    // Show audio container
+                    audioElements.classList.remove('hidden');
+                    audioElements.appendChild(audioElement);
+                    
+                    // Set default audio output
+                    await setDefaultAudioOutput();
+                };
+
+                // Add local tracks to peer connection with high priority
+                localStream.getTracks().forEach(track => {
+                    const sender = pc.addTrack(track, localStream);
+                    // Set high priority for audio tracks to minimize latency
+                    if (sender.setParameters && sender.getParameters) {
+                        const params = sender.getParameters();
+                        if (params.encodings && params.encodings.length > 0) {
+                            params.encodings[0].priority = 'high';
+                            sender.setParameters(params);
+                        }
+                    }
+                });
+
+                // Create offer with latency optimization
+                const offerOptions = {
+                    offerToReceiveAudio: true,
+                    offerToReceiveVideo: false,
+                    voiceActivityDetection: false  // Disable VAD for lower latency
+                };
+                
+                const offer = await pc.createOffer(offerOptions);
+                
+                // Modify SDP to prefer opus codec with lower latency settings
+                if (offer.sdp) {
+                    offer.sdp = offer.sdp.replace(/(a=fmtp:111 .*)/g, '$1; useinbandfec=0; stereo=0; maxaveragebitrate=128000; maxplaybackrate=48000; ptime=10; minptime=10; maxptime=20');
+                }
+                
+                await pc.setLocalDescription(offer);
+
+                // Send offer to server
+                await createOffer();
+                
+                // Update button states
+                stopButton.disabled = false;
+            } catch (error) {
+                // Reset UI on error
+                startButton.disabled = false;
+                statusText.textContent = 'Failed to connect';
+                setTimeout(() => {
+                    statusText.textContent = 'Ready to connect';
+                }, 3000);
+            }
+        };
+
+        // Stop streaming
+        stopButton.onclick = async () => {
+            try {
+                // Update UI state
+                stopButton.disabled = true;
+                
+                // Send stop signal to backend
+                await fetch('/stop', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ stop: true })
+                });
+
+                // Clean up resources
+                if (localStream) {
+                    localStream.getTracks().forEach(track => {
+                        track.stop();
+                    });
+                    localStream = null;
+                }
+
+                if (pc) {
+                    pc.close();
+                    pc = null;
+                }
+                
+                if (analyser) {
+                    analyser = null;
+                }
+
+                // Remove audio element
+                if (audioElement) {
+                    audioElement.remove();
+                    audioElement = null;
+                    audioElements.classList.add('hidden');
+                }
+                
+                // Update status and button states
+                updateStatus(false);
+                startButton.disabled = false;
+            } catch (error) {
+                // Reset UI on error
+                stopButton.disabled = false;
+            }
+        };
+        
+        // Initialize visualizer on page load
+        setupVisualizer();
+    </script>
+</body>
+</html>
