@@ -1,0 +1,8 @@
+Requirements 
+    Share music between peers
+    Using WebRTC
+    Host Shares their SDP - Peers connects to it
+    Host maps his speaker source - all peer recieves the content of the host on their system and plays it
+
+
+    All users stays connected to the with the host single point of connection

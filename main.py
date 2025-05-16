@@ -2,7 +2,7 @@ import os
 import asyncio
 import uuid
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from aiortc import RTCPeerConnection, RTCSessionDescription
 from aiortc.mediastreams import AudioFrame, MediaStreamError, MediaStreamTrack
@@ -15,6 +15,17 @@ import av
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Redirect root to static/index.html
+@app.get("/")
+async def index():
+    return HTMLResponse(open("static/index.html").read())
+
+# Redirect /manifest.json to /static/manifest.json
+@app.get("/manifest.json")
+async def manifest():
+    return FileResponse("static/manifest.json")
+
 pcs = set()
 last_recorder = None
 
@@ -188,10 +199,6 @@ async def stop():
 
     pcs.clear()
     return {"message": "Stopped"}
-
-@app.get("/")
-async def index():
-    return HTMLResponse(open("static/index.html").read())
 
 if __name__ == "__main__":
     import uvicorn
