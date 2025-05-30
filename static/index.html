@@ -19,42 +19,45 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
     <style>
         :root {
-            --primary: #8b5cf6;
-            --primary-dark: #7c3aed;
-            --primary-light: #a78bfa;
-            --success: #10b981;
-            --danger: #ef4444;
-            --background: #111827;
-            --card: #1f2937;
-            --card-hover: #2d3748;
-            --text: #f3f4f6;
-            --text-light: #9ca3af;
-            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
-            --radius: 12px;
-            --transition: all 0.3s ease;
+            --primary: #1DB954;          /* Spotify green */
+            --primary-dark: #179443;     /* Darker green */
+            --primary-light: #1ed760;    /* Lighter green */
+            --success: #1DB954;
+            --danger: #E91429;           /* Spotify red */
+            --background: #000000;       /* Pure black */
+            --card: #121212;             /* Spotify card background */
+            --card-hover: #282828;       /* Spotify hover state */
+            --text: #FFFFFF;
+            --text-light: #B3B3B3;       /* Spotify secondary text */
+            --shadow: 0 8px 24px rgba(0, 0, 0, .5);
+            --radius: 8px;               /* Spotify uses slightly smaller radius */
+            --transition: all 0.2s ease;
         }
 
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background-color: var(--background);
-            color: var(--text);
-            line-height: 1.6;
+            background: var(--background);
             margin: 0;
             padding: 0;
             display: flex;
             justify-content: center;
             align-items: center;
             min-height: 100dvh;
+            /* Remove gradient animation */
+            animation: none;
         }
 
         .container {
             width: 90%;
             max-width: 600px;
+            margin-left: 20px;
+            margin-right: 20px;
             padding: 2rem;
             background: var(--card);
-            border-radius: var(--radius);
+            /* Remove blur effect */
+            backdrop-filter: none;
+            border: none;
             box-shadow: var(--shadow);
-            border: 1px solid #374151;
         }
 
         h1 {
@@ -64,6 +67,12 @@
             margin-top: 0;
             margin-bottom: 1.5rem;
             text-align: center;
+            /* Remove gradient and glow */
+            background: none;
+            color: var(--text);
+            -webkit-background-clip: unset;
+            background-clip: unset;
+            animation: none;
         }
 
         .status-indicator {
@@ -83,8 +92,9 @@
         }
 
         .status-dot.active {
-            background-color: var(--success);
-            box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.2), 0 0 12px rgba(16, 185, 129, 0.6);
+            background: var(--primary);
+            /* Remove glow effect */
+            box-shadow: none;
         }
 
         .status-text {
@@ -119,13 +129,15 @@
         }
 
         #startButton {
-            background-color: var(--primary);
-            color: white;
+            background: var(--primary);
+            /* Remove gradient and glow */
+            box-shadow: none;
         }
 
         #startButton:hover {
-            background-color: var(--primary-dark);
-            transform: translateY(-2px);
+            background: var(--primary-light);
+            transform: scale(1.04);
+            box-shadow: none;
         }
 
         #startButton:disabled {
@@ -135,13 +147,16 @@
         }
 
         #stopButton {
-            background-color: var(--danger);
-            color: white;
+            background: transparent;
+            border: 1px solid var(--text-light);
+            color: var(--text);
         }
 
         #stopButton:hover {
-            background-color: #dc2626;
-            transform: translateY(-2px);
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--text);
+            transform: scale(1.04);
+            box-shadow: none;
         }
 
         #stopButton:disabled {
@@ -151,11 +166,9 @@
         }
 
         .audio-container {
-            background-color: #374151;
-            border-radius: var(--radius);
-            padding: 1rem;
-            margin-top: 1.5rem;
-            border: 1px solid #4b5563;
+            background: var(--card);
+            /* Remove glow */
+            box-shadow: none;
         }
 
         audio {
@@ -179,37 +192,33 @@
         .visualizer {
             height: 60px;
             width: 100%;
-            background-color: #374151;
-            border-radius: var(--radius);
-            margin-top: 1rem;
-            overflow: hidden;
-            position: relative;
-            border: 1px solid #4b5563;
+            background: var(--card);
+            border: none;
+            /* Remove glow */
+            box-shadow: none;
         }
 
         .visualizer-bar {
             position: absolute;
             bottom: 0;
             width: 6px;
-            background-color: var(--primary);
+            background: var(--primary);
             border-radius: 2px 2px 0 0;
             opacity: 0;
-            box-shadow: 0 0 8px rgba(139, 92, 246, 0.5);
+            box-shadow: none;
         }
 
         .visualizer-glow {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: 20px;
-            background: linear-gradient(to top, rgba(139, 92, 246, 0.2), transparent);
-            opacity: 0;
-            transition: opacity 0.5s ease;
+            /* Remove glow effect */
+            background: none;
         }
         
         .visualizer.active .visualizer-glow {
-            opacity: 1;
+            background: linear-gradient(to top, 
+                rgba(46, 204, 113, 0.3),
+                rgba(46, 204, 113, 0.1),
+                transparent
+            );
         }
 
         @keyframes pulse {
@@ -228,9 +237,15 @@
         }
         
         @keyframes glow {
-            0% { box-shadow: 0 0 5px rgba(139, 92, 246, 0.5); }
-            50% { box-shadow: 0 0 20px rgba(139, 92, 246, 0.8); }
-            100% { box-shadow: 0 0 5px rgba(139, 92, 246, 0.5); }
+            0% {
+                box-shadow: 0 0 5px rgba(46, 204, 113, 0.5);
+            }
+            50% {
+                box-shadow: 0 0 30px rgba(46, 204, 113, 0.8);
+            }
+            100% {
+                box-shadow: 0 0 5px rgba(46, 204, 113, 0.5);
+            }
         }
 
         .hidden {
@@ -239,22 +254,20 @@
         
         /* Dark mode scrollbar */
         ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
+            width: 12px;
         }
-        
+
         ::-webkit-scrollbar-track {
-            background: #374151;
-            border-radius: 4px;
+            background: var(--background);
         }
-        
+
         ::-webkit-scrollbar-thumb {
-            background: var(--primary);
-            border-radius: 4px;
+            background: #535353;
+            border-radius: 6px;
         }
-        
+
         ::-webkit-scrollbar-thumb:hover {
-            background: var(--primary-dark);
+            background: #7f7f7f;
         }
 
         #installButton {
@@ -267,7 +280,7 @@
             z-index: 1000;
             padding: 12px 24px;
             border-radius: var(--radius);
-            box-shadow: var(--shadow);
+            box-shadow: none;
             font-weight: 600;
             border: none;
             cursor: pointer;
@@ -275,8 +288,14 @@
         }
 
         #installButton:hover {
-            background-color: var(--primary-dark);
-            transform: translateY(-2px);
+            background-color: var(--primary-light);
+            transform: scale(1.04);
+        }
+
+        /* Remove floating music notes animation */
+        .container::before,
+        .container::after {
+            display: none;
         }
     </style>
 </head>
@@ -441,6 +460,15 @@
             }
         }
 
+        // Example signaling function using fetch (adjust as needed)
+        async function sendSignalingMessage(message) {
+            await fetch('/ice', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(message)
+            });
+        }
+
         // Start streaming
         startButton.onclick = async () => {
             try {
@@ -482,6 +510,12 @@
                     }
                 };
 
+                        // Handle ICE candidates
+                pc.onicecandidate = event => {
+                    if (event.candidate) {
+                        sendSignalingMessage({ type: 'ice', candidate: event.candidate });
+                    }
+                };
                 // Handle incoming tracks
                 pc.ontrack = async (event) => {
                     // Remove previous audio element if it exists

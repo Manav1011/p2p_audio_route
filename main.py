@@ -1,17 +1,14 @@
-import os
 import asyncio
-import uuid
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
-from aiortc import RTCPeerConnection, RTCSessionDescription
+from aiortc import RTCPeerConnection, RTCSessionDescription, RTCIceCandidate
 from aiortc.mediastreams import AudioFrame, MediaStreamError, MediaStreamTrack
 import subprocess
 import fractions
-import time
 import numpy as np
 from pydantic import BaseModel
-import av
+import ssl
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -140,10 +137,76 @@ class AudioRecorder:
                     self.process.kill()
                 except:
                     pass
+                
+def parse_candidate(candidate_str: str) -> RTCIceCandidate:
+    parts = candidate_str.split()
+    # Expected minimal parts count is 8 (foundation, component, protocol, priority, ip, port, 'typ', type)
+    if len(parts) < 8:
+        raise ValueError("Invalid candidate string format")
 
+    foundation = parts[0].replace("candidate:", "")
+    component = int(parts[1])
+    protocol = parts[2].lower()
+    priority = int(parts[3])
+    ip = parts[4]
+    port = int(parts[5])
+    # 'typ' should be parts[6], type is parts[7]
+    if parts[6] != "typ":
+        raise ValueError("Invalid candidate string format: missing 'typ'")
+
+    cand_type = parts[7]
+
+    # Optional fields follow after index 7
+    related_address = None
+    related_port = None
+    tcp_type = None
+
+    # Parse optional fields key-value pairs
+    opt_idx = 8
+    while opt_idx + 1 < len(parts):
+        key = parts[opt_idx]
+        value = parts[opt_idx + 1]
+        if key == "raddr":
+            related_address = value
+        elif key == "rport":
+            related_port = int(value)
+        elif key == "tcptype":
+            tcp_type = value
+        opt_idx += 2
+
+    return RTCIceCandidate(
+        component=component,
+        foundation=foundation,
+        ip=ip,
+        port=port,
+        priority=priority,
+        protocol=protocol,
+        type=cand_type,
+        relatedAddress=related_address,
+        relatedPort=related_port,
+        tcpType=tcp_type,
+    )
+    
+    
 @app.post("/offer")
 async def offer(offer: Offer):
     global last_recorder
+
+    # Clean up all existing peer connections before accepting a new one
+    if pcs:
+        for old_pc in list(pcs):
+            try:
+                for transceiver in old_pc.getTransceivers():
+                    sender = transceiver.sender
+                    if sender and sender.track:
+                        sender.track.stop()
+                await old_pc.close()
+            except Exception as e:
+                print(f"Error closing old pc: {e}")
+            pcs.discard(old_pc)
+        if last_recorder:
+            await last_recorder.finalize()
+            last_recorder = None
 
     pc = RTCPeerConnection()
     pcs.add(pc)
@@ -200,6 +263,31 @@ async def stop():
     pcs.clear()
     return {"message": "Stopped"}
 
+from fastapi import Request
+
+@app.post("/ice")
+async def ice(request: Request):
+    data = await request.json()
+    candidate_dict = data.get("candidate")
+    if candidate_dict:
+        if pcs:
+            pc = list(pcs)[-1]
+            # Parse candidate string to RTCIceCandidate object
+            candidate_obj = parse_candidate(candidate_dict["candidate"])
+            candidate_obj.sdpMid = candidate_dict.get("sdpMid")
+            candidate_obj.sdpMLineIndex = candidate_dict.get("sdpMLineIndex")
+            await pc.addIceCandidate(candidate_obj)
+    return {"result": "ok"}
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000)
+    # ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    # ssl_context.load_cert_chain('cert.pem', 'key.pem')
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=9001,
+        # ssl_keyfile="key.pem",
+        # ssl_certfile="cert.pem",
+        log_level="debug"
+    )
