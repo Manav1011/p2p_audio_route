@@ -14,7 +14,7 @@
     
     <!-- PWA Manifest -->
     <link rel="manifest" href="/static/manifest.json">
-    
+    <link rel="icon" type="image/x-icon" href="/icons/favicon.ico">
     <!-- Font Awesome -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
     <style>
@@ -50,14 +50,17 @@
         .container {
             width: 90%;
             max-width: 600px;
+            position: absolute;
+            z-index:1000;
             margin-left: 20px;
             margin-right: 20px;
             padding: 2rem;
-            background: var(--card);
             /* Remove blur effect */
             backdrop-filter: none;
             border: none;
             box-shadow: var(--shadow);
+            /* Add space for fixed visualizer */
+            margin-bottom: 80px;
         }
 
         h1 {
@@ -147,9 +150,9 @@
         }
 
         #stopButton {
-            background: transparent;
+            background: white;
             border: 1px solid var(--text-light);
-            color: var(--text);
+            color: var(--background);
         }
 
         #stopButton:hover {
@@ -160,13 +163,12 @@
         }
 
         #stopButton:disabled {
-            background-color: #fca5a5;
+            background-color: var(--text);
             cursor: not-allowed;
             transform: none;
         }
 
         .audio-container {
-            background: var(--card);
             /* Remove glow */
             box-shadow: none;
         }
@@ -190,35 +192,39 @@
         }
 
         .visualizer {
-            height: 60px;
+            height: 100%;
             width: 100%;
-            background: var(--card);
             border: none;
-            /* Remove glow */
             box-shadow: none;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            overflow: hidden;
         }
 
         .visualizer-bar {
             position: absolute;
             bottom: 0;
-            width: 6px;
+            width: 8px;  /* Increased from 6px to 8px */
             background: var(--primary);
-            border-radius: 2px 2px 0 0;
+            border-radius: 4px 4px 0 0;  /* Increased radius */
             opacity: 0;
             box-shadow: none;
+            transition: height 0.15s ease;  /* Slightly slower for smoother animation */
+        }
+
+        .visualizer.active {
+            border-bottom: 2px solid var(--primary);
         }
 
         .visualizer-glow {
-            /* Remove glow effect */
-            background: none;
-        }
-        
-        .visualizer.active .visualizer-glow {
-            background: linear-gradient(to top, 
-                rgba(46, 204, 113, 0.3),
-                rgba(46, 204, 113, 0.1),
-                transparent
-            );
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 100%;
+            pointer-events: none;
         }
 
         @keyframes pulse {
@@ -309,16 +315,17 @@
             <span id="statusText" class="status-text">Ready to connect</span>
         </div>
         
-        <div class="visualizer" id="visualizer">
-            <div class="visualizer-glow"></div>
-        </div>
-        
         <div class="controls">
             <button id="startButton"><i class="fas fa-microphone"></i> Start Streaming</button>
             <button id="stopButton" disabled><i class="fas fa-stop-circle"></i> Stop</button>
         </div>
         
         <div id="audioElements" class="audio-container hidden"></div>
+    </div>
+
+    <!-- Visualizer now outside container -->
+    <div class="visualizer" id="visualizer">
+        <div class="visualizer-glow"></div>
     </div>
     
     <script>
@@ -393,27 +400,14 @@
                     
                     analyser.getByteFrequencyData(dataArray);
                     
-                    // Calculate the average level for visualization
-                    let sum = 0;
-                    for (let i = 0; i < bufferLength; i++) {
-                        sum += dataArray[i];
-                    }
-                    
-                    // Update visualizer glow effect
-                    if (sum > 0) {
-                        visualizerElement.classList.add('active');
-                    } else {
-                        visualizerElement.classList.remove('active');
-                    }
-                    
-                    // Update bars with smoothing
+                    // Update bars with increased height
                     for (let i = 0; i < BAR_COUNT; i++) {
                         const barIndex = Math.floor(i * bufferLength / BAR_COUNT);
                         const value = dataArray[barIndex];
-                        const height = (value / 255) * 60;
+                        const height = (value / 255) * 500;  // Increased from 60 to 120
                         
                         visualizerBars[i].style.height = `${height}px`;
-                        visualizerBars[i].style.opacity = (value / 255) * 0.9 + 0.1;
+                        visualizerBars[i].style.opacity = (value / 255) * 0.95 + 0.05;  // Adjusted opacity
                     }
                     
                     requestAnimationFrame(updateVisualizer);
