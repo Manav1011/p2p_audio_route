@@ -2,7 +2,7 @@ import asyncio
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
-from aiortc import RTCPeerConnection, RTCSessionDescription, RTCIceCandidate
+from aiortc import RTCPeerConnection, RTCSessionDescription, RTCIceCandidate, RTCIceServer, RTCConfiguration
 from aiortc.mediastreams import AudioFrame, MediaStreamError, MediaStreamTrack
 import subprocess
 import fractions
@@ -22,6 +22,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+ice_servers = [
+    RTCIceServer(urls=["stun:stun.l.google.com:19302"]),
+]
+rtc_config = RTCConfiguration(iceServers=ice_servers)
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Redirect root to static/index.html
@@ -36,6 +41,8 @@ async def manifest():
 
 pcs = set()
 last_recorder = None
+# Store ICE candidates for each pc
+pc_ice_candidates = {}
 
 class Offer(BaseModel):
     sdp: str
@@ -219,8 +226,10 @@ async def offer(offer: Offer):
             await last_recorder.finalize()
             last_recorder = None
 
-    pc = RTCPeerConnection()
+    pc = RTCPeerConnection(rtc_config)
     pcs.add(pc)
+    # Initialize candidate queue for this pc
+    pc_ice_candidates[pc] = []
 
     speaker_track = SpeakerStreamTrack()
     pc.addTrack(speaker_track)
@@ -239,6 +248,14 @@ async def offer(offer: Offer):
             speaker_track.stop()
             await pc.close()
             pcs.discard(pc)
+            pc_ice_candidates.pop(pc, None)
+
+    @pc.on("icecandidate")
+    def on_icecandidate(event):
+        if event.candidate:
+            print(event.candidate)
+            # Store candidate for polling
+            pc_ice_candidates[pc].append(event.candidate)
 
     try:
         await pc.setRemoteDescription(RTCSessionDescription(sdp=offer.sdp, type=offer.type))
@@ -250,6 +267,7 @@ async def offer(offer: Offer):
             pcs.discard(pc)
         speaker_track.stop()
         await pc.close()
+        pc_ice_candidates.pop(pc, None)
         raise
 
 @app.post("/stop")
@@ -272,6 +290,7 @@ async def stop():
             print(f"Error during pc cleanup: {e}")
 
     pcs.clear()
+    pc_ice_candidates.clear()
     return {"message": "Stopped"}
 
 from fastapi import Request
@@ -283,12 +302,29 @@ async def ice(request: Request):
     if candidate_dict:
         if pcs:
             pc = list(pcs)[-1]
-            # Parse candidate string to RTCIceCandidate object
             candidate_obj = parse_candidate(candidate_dict["candidate"])
             candidate_obj.sdpMid = candidate_dict.get("sdpMid")
             candidate_obj.sdpMLineIndex = candidate_dict.get("sdpMLineIndex")
             await pc.addIceCandidate(candidate_obj)
     return {"result": "ok"}
+
+@app.get("/get-ice")
+async def get_ice():
+    # Return and clear all ICE candidates for the latest pc
+    if pcs:
+        pc = list(pcs)[-1]
+        candidates = pc_ice_candidates.get(pc, [])
+        pc_ice_candidates[pc] = []
+        # Serialize candidates for the client
+        result = []
+        for c in candidates:
+            result.append({
+                "candidate": c.__str__(),
+                "sdpMid": getattr(c, "sdpMid", None),
+                "sdpMLineIndex": getattr(c, "sdpMLineIndex", None)
+            })
+        return {"candidates": result}
+    return {"candidates": []}
 
 if __name__ == "__main__":
     import uvicorn

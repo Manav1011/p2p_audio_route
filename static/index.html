@@ -106,6 +106,11 @@
             font-weight: 500;
         }
 
+        .status-text.reconnecting {
+            color: var(--primary);
+            animation: pulse 1.5s infinite;
+        }
+
         .controls {
             display: flex;
             justify-content: center;
@@ -345,7 +350,8 @@
         let analyser;
         let visualizerBars = [];
         const BAR_COUNT = 40;
-        
+        let icePollingInterval = null;
+
         // Set up audio visualizer
         function setupVisualizer() {
             // Create visualizer bars
@@ -463,6 +469,32 @@
             });
         }
 
+        // Poll server for ICE candidates
+        async function pollServerIceCandidates() {
+            if (!pc) return;
+            try {
+                const response = await fetch('/get-ice');
+                const data = await response.json();
+                if (data.candidates && Array.isArray(data.candidates)) {
+                    for (const c of data.candidates) {
+                        if (c.candidate) {
+                            try {
+                                await pc.addIceCandidate({
+                                    candidate: c.candidate,
+                                    sdpMid: c.sdpMid,
+                                    sdpMLineIndex: c.sdpMLineIndex
+                                });
+                            } catch (e) {
+                                // Ignore errors for end-of-candidates
+                            }
+                        }
+                    }
+                }
+            } catch (e) {
+                // Silent fail
+            }
+        }
+
         // Start streaming
         startButton.onclick = async () => {
             try {
@@ -486,10 +518,16 @@
                 // Initialize audio visualizer
                 setupVisualizer();
                 initAudioAnalyser(localStream);
-
+0
                 // Create RTCPeerConnection with optimized settings
                 pc = new RTCPeerConnection({
-                    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' },
+                        { urls: 'stun:stun2.l.google.com:19302' },
+                        { urls: 'stun:stun3.l.google.com:19302' },
+                        { urls: 'stun:stun4.l.google.com:19302' }
+                    ],
                     sdpSemantics: 'unified-plan',
                     bundlePolicy: 'max-bundle',  // Optimize for fewer connections
                     iceTransportPolicy: 'all'    // Allow all transport types for better connectivity
@@ -499,7 +537,24 @@
                 pc.oniceconnectionstatechange = () => {
                     if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
                         updateStatus(true);
-                    } else if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'closed') {
+                        statusText.classList.remove('reconnecting');
+                    } else if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
+                        updateStatus(false);
+                        statusText.textContent = 'Connection lost. Reconnecting...';
+                        statusText.classList.add('reconnecting');
+                        startButton.disabled=false
+                        
+                        // Close existing connection
+                        if (pc) {
+                            pc.close();
+                            pc = null;
+                        }
+                        
+                        // Simply click the Start button again to reconnect
+                        setTimeout(() => {
+                            startButton.click();
+                        }, 2000); // Wait 2 seconds before reconnecting
+                    } else if (pc.iceConnectionState === 'closed') {
                         updateStatus(false);
                     }
                 };
@@ -562,7 +617,9 @@
 
                 // Send offer to server
                 await createOffer();
-                
+                // Start polling for server ICE candidates
+                if (icePollingInterval) clearInterval(icePollingInterval);
+                icePollingInterval = setInterval(pollServerIceCandidates, 500);
                 // Update button states
                 stopButton.disabled = false;
             } catch (error) {
@@ -614,8 +671,15 @@
                     audioElements.classList.add('hidden');
                 }
                 
+                // Stop polling for ICE candidates
+                if (icePollingInterval) {
+                    clearInterval(icePollingInterval);
+                    icePollingInterval = null;
+                }
+
                 // Update status and button states
                 updateStatus(false);
+                statusText.classList.remove('reconnecting');
                 startButton.disabled = false;
             } catch (error) {
                 // Reset UI on error

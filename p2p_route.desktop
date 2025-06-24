@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=P2P Audio Router
+Exec=/usr/local/bin/p2p_route
+Icon=p2p_icon
+Type=Application
+Terminal=true
+Categories=AudioVideo;
