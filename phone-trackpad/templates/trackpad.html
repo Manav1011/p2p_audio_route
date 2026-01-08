@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Phone Trackpad</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="theme-color" content="#1a1a2e">
+    
+    <style>
+        :root {
+            --primary-color: #16213e;
+            --secondary-color: #0f3460;
+            --accent-color: #e94560;
+            --text-color: #ffffff;
+            --text-muted: #a0a0a0;
+            --success-color: #00d4aa;
+            --warning-color: #ff6b35;
+            --background: #0a0a0a;
+            --surface: #1a1a2e;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, var(--background) 0%, var(--primary-color) 100%);
+            color: var(--text-color);
+            height: 100vh;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        .container.minimalist {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            width: 100vw;
+            background: #111;
+        }
+
+        .trackpad-area {
+            flex: 1;
+            position: relative;
+            background: #181818;
+            margin: 0;
+            border-radius: 0;
+            border: none;
+            box-shadow: none;
+            overflow: hidden;
+            touch-action: none;
+            cursor: none;
+            width: 100vw;
+            height: 100vh;
+        }
+        .sensitivity-bar {
+            position: absolute;
+            left: 50%;
+            bottom: 2.5vw;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            background: rgba(30,30,30,0.7);
+            border-radius: 16px;
+            padding: 0.3em 1em;
+            z-index: 100;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        .sensitivity-bar input[type=range] {
+            margin-right: 0.7em;
+        }
+        #sensitivityValue {
+            color: var(--accent-color);
+            font-size: 1.1em;
+            font-weight: 500;
+            min-width: 2.5em;
+            text-align: right;
+        }
+
+        .trackpad-surface {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            background: 
+                radial-gradient(circle at 30% 40%, rgba(233, 69, 96, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 70% 60%, rgba(15, 52, 96, 0.2) 0%, transparent 50%);
+        }
+
+        .trackpad-surface::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%;
+            height: 80%;
+            border: 1px dashed rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            pointer-events: none;
+        }
+
+        .controls {
+            background: rgba(26, 26, 46, 0.9);
+            backdrop-filter: blur(10px);
+            padding: 1rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .control-button {
+            background: linear-gradient(135deg, var(--secondary-color), var(--primary-color));
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 15px;
+            padding: 1rem;
+            color: var(--text-color);
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            min-width: 80px;
+            text-align: center;
+        }
+
+        .control-button:active {
+            transform: scale(0.95);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .control-button.left-click {
+            background: linear-gradient(135deg, var(--accent-color), #c73650);
+        }
+
+        .control-button.right-click {
+            background: linear-gradient(135deg, #ff6b35, #e55100);
+        }
+
+        .sensitivity-control {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .sensitivity-slider {
+            width: 100px;
+            height: 4px;
+            border-radius: 2px;
+            background: rgba(255, 255, 255, 0.2);
+            outline: none;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        .sensitivity-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--accent-color);
+            cursor: pointer;
+            box-shadow: 0 0 0 3px rgba(233, 69, 96, 0.3);
+        }
+
+        .feedback {
+            position: absolute;
+            top: 1rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: var(--text-color);
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .feedback.show {
+            opacity: 1;
+        }
+
+        /* Touch indicators */
+        .touch-indicator {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: radial-gradient(circle, var(--accent-color) 0%, transparent 70%);
+            pointer-events: none;
+            transform: translate(-50%, -50%) scale(0);
+            transition: transform 0.1s ease;
+            z-index: 10;
+        }
+
+        .touch-indicator.active {
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        /* Responsive design */
+        @media (orientation: landscape) {
+            .header h1 { font-size: 1.2rem; }
+            .header { padding: 0.8rem 1rem; }
+            .controls { padding: 0.8rem 1rem; }
+            .sensitivity-control { 
+                flex-direction: row; 
+                gap: 1rem;
+                align-items: center;
+            }
+            .sensitivity-control label {
+                margin-bottom: 0;
+                white-space: nowrap;
+            }
+            .sensitivity-slider {
+                width: 150px;
+            }
+            
+            /* Optimize trackpad area for landscape */
+            .trackpad-area {
+                margin: 0.8rem;
+                border-radius: 15px;
+            }
+            
+            /* Better touch indicators for landscape */
+            .touch-indicator {
+                width: 16px;
+                height: 16px;
+            }
+        }
+
+        @media (max-height: 500px) {
+            .header { padding: 0.5rem 1rem; }
+            .controls { padding: 0.5rem 1rem; }
+            .trackpad-area { margin: 0.5rem; }
+        }
+
+        @media (max-width: 500px) and (orientation: landscape) {
+            .header h1 { font-size: 1rem; }
+            .status-indicator { font-size: 0.8rem; }
+            .controls { 
+                padding: 0.5rem 1rem;
+                justify-content: center;
+            }
+            .sensitivity-control label { font-size: 0.8rem; }
+            .sensitivity-slider { width: 120px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container minimalist">
+        <div class="trackpad-area" id="trackpadArea">
+            <div class="trackpad-surface" id="trackpadSurface"></div>
+            <div class="sensitivity-bar">
+                <input type="range" class="sensitivity-slider" id="sensitivitySlider" min="0.5" max="5" step="0.1" value="2">
+                <span id="sensitivityValue">2.0x</span>
+            </div>
+        </div>
+        <div class="feedback" id="feedback"></div>
+    </div>
+
+    <script>
+        class PhoneTrackpad {
+            constructor() {
+                this.ws = null;
+                this.isConnected = false;
+                this.lastTouchTime = 0;
+                this.touches = new Map();
+                this.isDragging = false;
+                this.dragStarted = false;
+                this.sensitivity = 2.0;
+                this.longPressTimeout = null;
+                this.longPressDelay = 500; // ms
+                this.tapTimeout = null;
+                this.tapDelay = 200; // ms for tap detection
+                this.lastTapCount = 0;
+                this.lastTapTime = 0;
+                this.isSelecting = false;
+                this.doubleTapDelay = 300; // ms for double tap
+                
+                this.initElements();
+                this.initWebSocket();
+                this.initEventListeners();
+            }
+
+            initElements() {
+                this.trackpadArea = document.getElementById('trackpadArea');
+                this.trackpadSurface = document.getElementById('trackpadSurface');
+                this.sensitivitySlider = document.getElementById('sensitivitySlider');
+                this.sensitivityValue = document.getElementById('sensitivityValue');
+                this.feedback = document.getElementById('feedback');
+            }
+
+            initWebSocket() {
+                const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsUrl = `${protocol}//${location.host}/ws`;
+                
+                this.ws = new WebSocket(wsUrl);
+                
+                this.ws.onopen = () => {
+                    this.isConnected = true;
+                    this.updateStatus('Connected', true);
+                    this.showFeedback('✅ Connected to computer');
+                };
+                
+                this.ws.onclose = () => {
+                    this.isConnected = false;
+                    this.updateStatus('Disconnected', false);
+                    this.showFeedback('❌ Connection lost. Reconnecting...');
+                    setTimeout(() => this.initWebSocket(), 2000);
+                };
+                
+                this.ws.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                    this.showFeedback('⚠️ Connection error');
+                };
+                
+                this.ws.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        if (data.type === 'error') {
+                            this.showFeedback(`❌ ${data.message}`);
+                        }
+                    } catch (e) {
+                        console.error('Error parsing message:', e);
+                    }
+                };
+            }
+
+            initEventListeners() {
+                // Touch events
+                this.trackpadSurface.addEventListener('touchstart', (e) => this.handleTouchStart(e));
+                this.trackpadSurface.addEventListener('touchmove', (e) => this.handleTouchMove(e));
+                this.trackpadSurface.addEventListener('touchend', (e) => this.handleTouchEnd(e));
+                
+                // Prevent default behaviors
+                this.trackpadSurface.addEventListener('contextmenu', (e) => e.preventDefault());
+                this.trackpadSurface.addEventListener('selectstart', (e) => e.preventDefault());
+                
+                // Sensitivity slider
+                this.sensitivitySlider.addEventListener('input', (e) => {
+                    this.sensitivity = parseFloat(e.target.value);
+                    this.sensitivityValue.textContent = this.sensitivity.toFixed(1) + 'x';
+                    this.updateSensitivity();
+                });
+
+                // Orientation change detection
+                window.addEventListener('orientationchange', () => {
+                    setTimeout(() => {
+                        this.handleOrientationChange();
+                    }, 100);
+                });
+
+                // Initial orientation setup
+                this.handleOrientationChange();
+
+                // Prevent scrolling on the whole page
+                document.addEventListener('touchmove', (e) => {
+                    if (e.target.closest('.trackpad-surface')) {
+                        e.preventDefault();
+                    }
+                }, { passive: false });
+            }
+
+            handleOrientationChange() {
+                const isLandscape = window.innerWidth > window.innerHeight;
+                
+                if (isLandscape) {
+                    // Landscape mode - increase sensitivity slightly for better control
+                    document.body.classList.add('landscape-mode');
+                    this.showFeedback('📱 Landscape mode optimized');
+                } else {
+                    // Portrait mode
+                    document.body.classList.remove('landscape-mode');
+                    this.showFeedback('📱 Portrait mode');
+                }
+            }
+
+            handleTouchStart(e) {
+                e.preventDefault();
+
+                const touches = Array.from(e.touches);
+                const now = Date.now();
+                
+                // Store touch data with more information
+                touches.forEach(touch => {
+                    this.touches.set(touch.identifier, {
+                        id: touch.identifier,
+                        startX: touch.clientX,
+                        startY: touch.clientY,
+                        x: touch.clientX,
+                        y: touch.clientY,
+                        startTime: now,
+                        moved: false
+                    });
+                    
+                    // Create touch indicator
+                    this.createTouchIndicator(touch.clientX, touch.clientY, touch.identifier);
+                });
+
+                // Clear any existing tap timeout
+                if (this.tapTimeout) {
+                    clearTimeout(this.tapTimeout);
+                    this.tapTimeout = null;
+                }
+
+                // Long press detection for text selection (single finger only)
+                if (touches.length === 1 && !this.isDragging && !this.isSelecting) {
+                    this.longPressTimeout = setTimeout(() => {
+                        this.startSelection();
+                        this.showFeedback('📝 Text selection mode');
+                    }, this.longPressDelay);
+                }
+
+                // Clear long press for multi-touch
+                if (touches.length > 1) {
+                    this.clearLongPress();
+                }
+                
+                // Three finger gesture starts drag immediately
+                if (touches.length === 3 && !this.isDragging) {
+                    this.startDrag();
+                }
+            }
+
+            handleTouchMove(e) {
+                e.preventDefault();
+                
+                const touches = Array.from(e.touches);
+                
+                if (touches.length === 1) {
+                    // Single finger - mouse movement or drag
+                    const touch = touches[0];
+                    const prevTouch = this.touches.get(touch.identifier);
+                    
+                    if (prevTouch) {
+                        const deltaX = touch.clientX - prevTouch.x;
+                        const deltaY = touch.clientY - prevTouch.y;
+                        
+                        // Mark as moved for tap detection
+                        const moveDistance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+                        if (moveDistance > 5) { // Reduced threshold for better responsiveness
+                            prevTouch.moved = true;
+                            this.clearLongPress(); // Cancel long press if moved significantly
+                        }
+                        
+                        // Send mouse movement
+                        this.sendEvent('move', { deltaX, deltaY });
+                        
+                        // Update touch position
+                        this.touches.set(touch.identifier, {
+                            ...prevTouch,
+                            x: touch.clientX,
+                            y: touch.clientY
+                        });
+                        
+                        // Update touch indicator
+                        this.updateTouchIndicator(touch.clientX, touch.clientY, touch.identifier);
+                    }
+                    
+                } else if (touches.length === 2) {
+                    // Two finger - scrolling and pinch gestures
+                    this.clearLongPress();
+                    
+                    const touch1 = touches[0];
+                    const touch2 = touches[1];
+                    const prevTouch1 = this.touches.get(touch1.identifier);
+                    const prevTouch2 = this.touches.get(touch2.identifier);
+                    
+                    if (prevTouch1 && prevTouch2) {
+                        // Mark both touches as moved to prevent tap detection
+                        prevTouch1.moved = true;
+                        prevTouch2.moved = true;
+                        
+                        // Calculate distance between fingers for pinch detection
+                        const currentDistance = Math.sqrt(
+                            Math.pow(touch1.clientX - touch2.clientX, 2) + 
+                            Math.pow(touch1.clientY - touch2.clientY, 2)
+                        );
+                        
+                        const prevDistance = Math.sqrt(
+                            Math.pow(prevTouch1.x - prevTouch2.x, 2) + 
+                            Math.pow(prevTouch1.y - prevTouch2.y, 2)
+                        );
+                        
+                        const distanceChange = currentDistance - prevDistance;
+                        
+                        // If significant pinch/zoom gesture detected
+                        if (Math.abs(distanceChange) > 5) {
+                            if (distanceChange > 0) {
+                                // Zoom in (fingers moving apart)
+                                this.sendEvent('zoom', { delta: 1 });
+                                this.showFeedback('🔍 Zoom In');
+                            } else {
+                                // Zoom out (fingers moving together)
+                                this.sendEvent('zoom', { delta: -1 });
+                                this.showFeedback('🔍 Zoom Out');
+                            }
+                        } else {
+                            // Regular scrolling
+                            const deltaX = ((touch1.clientX - prevTouch1.x) + (touch2.clientX - prevTouch2.x)) / 2;
+                            const deltaY = ((touch1.clientY - prevTouch1.y) + (touch2.clientY - prevTouch2.y)) / 2;
+                            
+                            // Send scroll event with both X and Y deltas
+                            this.sendEvent('scroll', { deltaX: -deltaX, deltaY: -deltaY });
+                        }
+                        
+                        // Update touch positions
+                        this.touches.set(touch1.identifier, { 
+                            ...prevTouch1, 
+                            x: touch1.clientX, 
+                            y: touch1.clientY 
+                        });
+                        this.touches.set(touch2.identifier, { 
+                            ...prevTouch2, 
+                            x: touch2.clientX, 
+                            y: touch2.clientY 
+                        });
+                        
+                        // Update touch indicators
+                        this.updateTouchIndicator(touch1.clientX, touch1.clientY, touch1.identifier);
+                        this.updateTouchIndicator(touch2.clientX, touch2.clientY, touch2.identifier);
+                    }
+                } else if (touches.length === 3) {
+                    // Three finger - drag operation
+                    this.clearLongPress();
+                    
+                    if (!this.isDragging && !this.dragStarted) {
+                        this.startDrag();
+                    }
+                    
+                    // Use first finger for drag movement
+                    const touch = touches[0];
+                    const prevTouch = this.touches.get(touch.identifier);
+                    
+                    if (prevTouch && this.isDragging) {
+                        const deltaX = touch.clientX - prevTouch.x;
+                        const deltaY = touch.clientY - prevTouch.y;
+                        
+                        this.sendEvent('move', { deltaX, deltaY });
+                        
+                        this.touches.set(touch.identifier, {
+                            ...prevTouch,
+                            x: touch.clientX,
+                            y: touch.clientY
+                        });
+                    }
+                }
+            }
+
+            handleTouchEnd(e) {
+                e.preventDefault();
+                this.clearLongPress();
+                
+                const remainingTouches = Array.from(e.touches);
+                const endedTouches = [];
+                const now = Date.now();
+                
+                // Find which touches ended
+                this.touches.forEach((touchData, id) => {
+                    if (!remainingTouches.find(t => t.identifier === id)) {
+                        endedTouches.push({ id, ...touchData });
+                    }
+                });
+
+                // Improved gesture detection
+                if (remainingTouches.length === 0) { // All fingers lifted
+                    // Check if it was a simultaneous tap
+                    const allQuickTaps = endedTouches.every(touch => {
+                        const duration = now - touch.startTime;
+                        return duration < 300 && !touch.moved; // Increased time threshold
+                    });
+
+                    if (allQuickTaps) {
+                        if (endedTouches.length === 3) {
+                            // Three finger tap = middle click
+                            this.sendEvent('click', { button: 'middle' });
+                            this.showFeedback('👆👆👆 Middle click');
+                        } else if (endedTouches.length === 2) {
+                            // Two finger simultaneous tap = right click
+                            this.sendEvent('click', { button: 'right' });
+                            this.showFeedback('👆👆 Right click');
+                        } else if (endedTouches.length === 1) {
+                            // Single finger tap = left click
+                            this.sendEvent('click', { button: 'left' });
+                            this.showFeedback('👆 Left click');
+                        } else if (endedTouches.length === 4) {
+                            // Four finger tap = show desktop / expose
+                            this.sendEvent('gesture', { type: 'show_desktop' });
+                            this.showFeedback('👆👆👆👆 Show Desktop');
+                        }
+                    }
+                }
+                
+                // Remove ended touches
+                endedTouches.forEach(touch => {
+                    this.touches.delete(touch.id);
+                    this.removeTouchIndicator(touch.id);
+                });
+                
+                // End drag/selection if no touches remain
+                if (remainingTouches.length === 0) {
+                    if (this.isDragging) {
+                        this.endDrag();
+                    }
+                    if (this.isSelecting) {
+                        this.endSelection();
+                    }
+                }
+            }
+
+            createTouchIndicator(x, y, id) {
+                const indicator = document.createElement('div');
+                indicator.className = 'touch-indicator active';
+                indicator.id = `touch-${id}`;
+                indicator.style.left = x + 'px';
+                indicator.style.top = y + 'px';
+                this.trackpadSurface.appendChild(indicator);
+            }
+
+            updateTouchIndicator(x, y, id) {
+                const indicator = document.getElementById(`touch-${id}`);
+                if (indicator) {
+                    indicator.style.left = x + 'px';
+                    indicator.style.top = y + 'px';
+                }
+            }
+
+            removeTouchIndicator(id) {
+                const indicator = document.getElementById(`touch-${id}`);
+                if (indicator) {
+                    indicator.classList.remove('active');
+                    setTimeout(() => indicator.remove(), 100);
+                }
+            }
+
+            handleTap(fingerCount) {
+                if (fingerCount === 1) {
+                    // Single finger tap = left click
+                    this.sendEvent('click', { button: 'left' });
+                    this.showFeedback('👆 Left click');
+                } else if (fingerCount === 2) {
+                    // Two finger tap = right click
+                    this.sendEvent('click', { button: 'right' });
+                    this.showFeedback('👆👆 Right click');
+                }
+            }
+
+            startSelection() {
+                if (!this.isSelecting) {
+                    this.isSelecting = true;
+                    this.sendEvent('selection_start');
+                    
+                    // Add visual feedback for selection mode
+                    this.trackpadSurface.style.background = 
+                        'radial-gradient(circle at 50% 50%, rgba(0, 212, 170, 0.2) 0%, transparent 70%)';
+                }
+            }
+
+            endSelection() {
+                if (this.isSelecting) {
+                    this.isSelecting = false;
+                    this.sendEvent('selection_end');
+                    this.showFeedback('✋ Selection ended');
+                    
+                    // Reset visual feedback
+                    this.trackpadSurface.style.background = '';
+                }
+            }
+
+            startDrag() {
+                if (!this.isDragging && !this.dragStarted && !this.isSelecting) {
+                    this.isDragging = true;
+                    this.dragStarted = true;
+                    this.sendEvent('drag_start');
+                    this.showFeedback('🖱️ Drag started');
+                    
+                    // Add visual feedback
+                    this.trackpadSurface.style.background = 
+                        'radial-gradient(circle at 50% 50%, rgba(233, 69, 96, 0.2) 0%, transparent 70%)';
+                }
+            }
+
+            endDrag() {
+                if (this.isDragging) {
+                    this.isDragging = false;
+                    this.sendEvent('drag_end');
+                    this.showFeedback('✋ Drag ended');
+                    
+                    // Reset visual feedback
+                    this.trackpadSurface.style.background = '';
+                    
+                    setTimeout(() => {
+                        this.dragStarted = false;
+                    }, 100);
+                }
+            }
+
+            clearLongPress() {
+                if (this.longPressTimeout) {
+                    clearTimeout(this.longPressTimeout);
+                    this.longPressTimeout = null;
+                }
+            }
+
+            sendEvent(type, data = {}) {
+                if (!this.isConnected || !this.ws) return;
+                
+                const event = {
+                    type,
+                    ...data
+                };
+                
+                try {
+                    this.ws.send(JSON.stringify(event));
+                } catch (e) {
+                    console.error('Error sending event:', e);
+                }
+            }
+
+            updateSensitivity() {
+                fetch('/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sensitivity: this.sensitivity })
+                }).catch(e => console.error('Error updating sensitivity:', e));
+                
+                // Always update the UI value
+                if (this.sensitivityValue) {
+                    this.sensitivityValue.textContent = this.sensitivity.toFixed(1) + 'x';
+                }
+            }
+
+            updateStatus(text, connected) {
+                // Status elements removed in minimalist design
+                // Keep method for compatibility
+            }
+
+            showFeedback(message) {
+                this.feedback.textContent = message;
+                this.feedback.classList.add('show');
+                setTimeout(() => {
+                    this.feedback.classList.remove('show');
+                }, 2000);
+            }
+        }
+
+        // Initialize trackpad when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new PhoneTrackpad();
+        });
+
+        // Prevent page refresh on pull-down
+        document.addEventListener('touchstart', function(e) {
+            if (e.touches.length > 1) {
+                e.preventDefault();
+            }
+        });
+
+        let lastTouchEnd = 0;
+        document.addEventListener('touchend', function(e) {
+            const now = Date.now();
+            if (now - lastTouchEnd <= 300) {
+                e.preventDefault();
+            }
+            lastTouchEnd = now;
+        }, false);
+    </script>
+</body>
+</html>

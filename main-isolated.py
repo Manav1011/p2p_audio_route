@@ -10,13 +10,60 @@ import numpy as np
 from pydantic import BaseModel
 import ssl
 from fastapi.middleware.cors import CORSMiddleware
+import re
+import qrcode
+from contextlib import asynccontextmanager
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Free port 9000
+    try:
+        pids = subprocess.check_output(["lsof", "-t", "-i", ":9000"]).decode().split()
+        if pids:
+            print(f"Killing processes using port 9000: {pids}")
+            subprocess.run(["kill", "-9"] + pids)
+    except subprocess.CalledProcessError:
+        # No process found on port 9000
+        pass
+
+    # Start cloudflared
+    process = await asyncio.create_subprocess_exec(
+        "cloudflared", "tunnel", "--url", "http://localhost:9000",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+
+    async def monitor_cloudflared():
+        while True:
+            line = await process.stderr.readline()
+            if not line:
+                break
+            text = line.decode().strip()
+            print(text)
+            
+            # Look for the URL pattern
+            match = re.search(r"https://[a-z0-9-]+\.trycloudflare\.com", text)
+            if match:
+                url = match.group(0)
+                print(f"\n{'='*60}")
+                print(f"TUNNEL URL: {url}")
+                print(f"{'='*60}\n")
+                
+                qr = qrcode.QRCode()
+                qr.add_data(url)
+                qr.print_ascii()
+                print(f"\n{'='*60}\n")
+
+    asyncio.create_task(monitor_cloudflared())
+    yield
+    process.terminate()
+
+app = FastAPI(lifespan=lifespan)
 
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # You can restrict this to your frontend domain if needed
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -335,7 +382,7 @@ if __name__ == "__main__":
     uvicorn.run(
         app,
         host="0.0.0.0",
-        port=9001,
+        port=9000,
         # ssl_keyfile="key.pem",
         # ssl_certfile="cert.pem",
         log_level="debug"
